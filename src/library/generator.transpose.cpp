@@ -22,6 +22,8 @@ that swap lines following permutation algorithm.
 */
 #include <vector>
 #include "generator.transpose.h"
+#include <fmt/core.h>
+#include <fmt/compile.h>
 
 namespace clfft_transpose_generator
 {
@@ -423,6 +425,7 @@ void permutation_calculation(size_t m, size_t n, std::vector<std::vector<size_t>
 clfftStatus genSwapKernel(const FFTGeneratedTransposeNonSquareAction::Signature & params, std::string& strKernel, std::string& KernelFuncName, const size_t& lwSize, const size_t reShapeFactor)
 {
 	strKernel.reserve(4096);
+    fmt::memory_buffer buffer;
 	std::stringstream transKernel(std::stringstream::out);
 
 	// These strings represent the various data types we read or write in the kernel, depending on how the plan
@@ -452,6 +455,7 @@ clfftStatus genSwapKernel(const FFTGeneratedTransposeNonSquareAction::Signature 
 		dtComplex = "double2";
 
 		// Emit code that enables double precision in the kernel
+
 		clKernWrite(transKernel, 0) << "#ifdef cl_khr_fp64" << std::endl;
 		clKernWrite(transKernel, 3) << "#pragma OPENCL EXTENSION cl_khr_fp64 : enable" << std::endl;
 		clKernWrite(transKernel, 0) << "#else" << std::endl;

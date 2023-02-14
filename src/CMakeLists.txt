@@ -336,3 +336,13 @@ include( CPack )
 
 # reset cmake module path to any earlier path
 set(CMAKE_MODULE_PATH ${old_module_path})
+
+include(FetchContent)
+
+FetchContent_Declare(
+		LibFMT
+		GIT_REPOSITORY https://github.com/fmtlib/fmt
+		GIT_TAG        a337011
+)
+set(FMT_INSTALL ON)
+FetchContent_MakeAvailable(LibFMT)

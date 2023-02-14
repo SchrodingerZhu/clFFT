@@ -92,7 +92,7 @@ target_include_directories(clFFT
         ${OPENCL_INCLUDE_DIRS}
     )
 
-target_link_libraries( clFFT ${OPENCL_LIBRARIES} ${CMAKE_DL_LIBS} )
+target_link_libraries( clFFT ${OPENCL_LIBRARIES} ${CMAKE_DL_LIBS} fmt::fmt )
 
 set_target_properties(clFFT PROPERTIES VERSION ${clFFT_VERSION})
 set_target_properties(clFFT PROPERTIES SOVERSION ${clFFT_VERSION_MAJOR})
