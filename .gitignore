@@ -17,3 +17,7 @@ build/
 
 # ignore tilde files
 *~
+
+# Clion development
+cmake-build-*
+.idea
