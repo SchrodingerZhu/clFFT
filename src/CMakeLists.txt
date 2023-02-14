@@ -30,7 +30,7 @@ if(CMAKE_GENERATOR MATCHES "NMake")
 endif()
 
 project(clFFT VERSION 2.12.2 LANGUAGES C CXX)
-
+set(CMAKE_CXX_STANDARD 17)
 # save any current module search path for restoration at end of script
 set(old_module_path ${CMAKE_MODULE_PATH})
 
