@@ -16,7 +16,7 @@
 
 
 #include "stdafx.h"
-#include <math.h>
+#include <cmath>
 #include "generator.stockham.h"
 #include <list>
 #include "action.h"

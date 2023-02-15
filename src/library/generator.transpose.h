@@ -23,6 +23,8 @@
 #include "plan.h"
 #include "generator.stockham.h"
 #include "action.h"
+#include <fmt/core.h>
+#include <fmt/compile.h>
 
 #define AVAIL_MEM_SIZE 32768 
 
@@ -30,6 +32,12 @@ inline std::stringstream& clKernWrite(std::stringstream& rhs, const size_t tabIn
 {
 	rhs << std::setw(tabIndex) << "";
 	return rhs;
+}
+
+template<typename Buffer, typename... Args>
+inline void clKernWrite(Buffer& buffer, const size_t indent, fmt::format_string<Args...> format_str, Args&&... args)
+{
+    fmt::format_to(fmt::format_to(std::back_inserter(buffer), "{:{}}", "", indent), format_str, std::forward<Args>(args)...);
 }
 
 namespace clfft_transpose_generator
