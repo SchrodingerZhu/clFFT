@@ -1089,11 +1089,11 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
                 num_reduced_col = smaller_dim;
             }
 
-            std::string funcName;
+            std::string_view funcName;
 
             clKernWrite(transKernel, 0, "\n");
 
-            size_t *cycle_map = new size_t[num_reduced_row * num_reduced_col * 2];
+            auto *cycle_map = new size_t[num_reduced_row * num_reduced_col * 2];
             /* The memory required by cycle_map cannot exceed 2 times row*col by design*/
 
             get_cycles(cycle_map, num_reduced_row, num_reduced_col);
@@ -1137,18 +1137,21 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
 
             switch (params.fft_inputLayout) {
                 case CLFFT_COMPLEX_INTERLEAVED:
-                    clKernWrite(transKernel, 0, "void swap(global {} *inputA, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
+                    clKernWrite(transKernel, 0,
+                                "void swap(global {} *inputA, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
                                 dtComplex, tmpBuffType, dtComplex, tmpBuffType, dtComplex);
                     break;
                 case CLFFT_COMPLEX_PLANAR:
-                    clKernWrite(transKernel, 0, "void swap(global {} *inputA_R, global {} * inputA_I, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
-                               dtPlanar, dtPlanar, tmpBuffType, dtComplex, tmpBuffType, dtComplex);
+                    clKernWrite(transKernel, 0,
+                                "void swap(global {} *inputA_R, global {} * inputA_I, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
+                                dtPlanar, dtPlanar, tmpBuffType, dtComplex, tmpBuffType, dtComplex);
                     break;
                 case CLFFT_HERMITIAN_INTERLEAVED:
                 case CLFFT_HERMITIAN_PLANAR:
                     return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
                 case CLFFT_REAL:
-                    clKernWrite(transKernel, 0, "void swap(global {} *inputA, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
+                    clKernWrite(transKernel, 0,
+                                "void swap(global {} *inputA, {} {} * Ls, {} {} * Ld, size_t is, size_t id, size_t pos, size_t end_indx, size_t work_id",
                                 dtPlanar, tmpBuffType, dtPlanar, tmpBuffType, dtPlanar);
                     break;
                 default:
@@ -1170,7 +1173,8 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
             }
 
             clKernWrite(transKernel, 0, "){{\n");
-            clKernWrite(transKernel, 3, "for (size_t j = get_local_id(0); j < end_indx; j += {} ){{\n", local_work_size_swap);
+            clKernWrite(transKernel, 3, "for (size_t j = get_local_id(0); j < end_indx; j += {} ){{\n",
+                        local_work_size_swap);
 
             switch (params.fft_inputLayout) {
                 case CLFFT_REAL:
@@ -1178,15 +1182,189 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
 
                     if (params.fft_hasPreCallback) {
                         clKernWrite(transKernel, 6, "if (pos == 0) {{\n");
-                        clKernWrite(transKernel, 9, "Ls[j] = {}(inputA, (is * {} + {} * word_id + j + iOffset), pre_userdata",
+                        clKernWrite(transKernel, 9,
+                                    "Ls[j] = {}(inputA, (is * {} + {} * work_id + j + iOffset), pre_userdata",
                                     params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
                         if (params.fft_preCallback.localMemSize > 0) {
                             clKernWrite(transKernel, 0, ", localmem");
                         }
                         clKernWrite(transKernel, 0, ");\n");
 
+                        clKernWrite(transKernel, 9,
+                                    "Ld[j] = {}(inputA, (id * {} + {} * work_id + j + iOffset), pre_userdata",
+                                    params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
+                        if (params.fft_preCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                        clKernWrite(transKernel, 6, "}}\n");
+
+                        clKernWrite(transKernel, 6, "else if (pos == 1){{\n");
+                        clKernWrite(transKernel, 9,
+                                    "Ld[j] = {}(inputA, (id * {} + {} * work_id + j + iOffset), pre_userdata",
+                                    params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
+                        if (params.fft_preCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                        clKernWrite(transKernel, 6, "}}\n");
+                    } else {
+                        clKernWrite(transKernel, 6, "if (pos == 0){{\n");
+                        clKernWrite(transKernel, 9, "Ls[j] = inputA[is * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 9, "Ld[j] = inputA[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 6, "}}\n");
+
+                        clKernWrite(transKernel, 6, "else if (pos == 1){{\n");
+                        clKernWrite(transKernel, 9, "Ld[j] = inputA[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 6, "}}\n");
                     }
+                    if (params.fft_hasPostCallback) {
+                        clKernWrite(transKernel, 6,
+                                    "{}(inputA, (iOffset + id * {} + {} * work_id + j), post_userdata, Ls[j]",
+                                    params.fft_postCallback.funcname, smaller_dim, num_elements_loaded);
+                        if (params.fft_postCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                    } else if (params.fft_hasPreCallback) {
+                        clKernWrite(transKernel, 6, "inputA[id * {} + {} * work_id + j + iOffset] = Ls[j];\n",
+                                    smaller_dim,
+                                    num_elements_loaded);
+                    } else {
+                        clKernWrite(transKernel, 6, "inputA[id * {} + {} * work_id + j] = Ls[j];\n", smaller_dim,
+                                    num_elements_loaded);
+                    }
+                    break;
+                case CLFFT_HERMITIAN_INTERLEAVED:
+                case CLFFT_HERMITIAN_PLANAR:
+                    return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
+                case CLFFT_COMPLEX_PLANAR:
+                    if (params.fft_hasPreCallback) {
+                        clKernWrite(transKernel, 6, "if (pos == 0){{\n");
+                        clKernWrite(transKernel, 9,
+                                    "Ls[j] = {}(inputA_R, inputA_I, (is * {} + {} * work_id + j + iOffset), pre_userdata",
+                                    params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
+                        if (params.fft_preCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+
+                        clKernWrite(transKernel, 9,
+                                    "Ld[j] = {}(inputA_R, inputA_I, (id * {} + {} * work_id + j + iOffset), pre_userdata",
+                                    params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
+                        if (params.fft_preCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                        clKernWrite(transKernel, 6, "}}\n");
+
+                        clKernWrite(transKernel, 6, "else if (pos == 1){{\n");
+                        clKernWrite(transKernel, 9,
+                                    "Ld[j] = {}(inputA_R, inputA_I, (id * {} + {} * work_id + j + iOffset), pre_userdata",
+                                    params.fft_preCallback.funcname, smaller_dim, num_elements_loaded);
+
+                        if (params.fft_preCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                        clKernWrite(transKernel, 6, "}}\n");
+                    } else {
+                        clKernWrite(transKernel, 6, "if (pos == 0){{\n");
+                        clKernWrite(transKernel, 9, "Ls[j].x = inputA_R[is * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 9, "Ls[j].y = inputA_I[is * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 9, "Ld[j].x = inputA_R[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 9, "Ld[j].y = inputA_I[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 6, "}}\n");
+
+                        clKernWrite(transKernel, 6, "else if (pos == 1){{\n");
+                        clKernWrite(transKernel, 9, "Ld[j].x = inputA_R[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 9, "Ld[j].y = inputA_I[id * {} + {} * work_id + j];\n", smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 6, "}}\n");
+                    }
+                    if (params.fft_hasPostCallback) {
+                        clKernWrite(transKernel, 6,
+                                    "{}(inputA_R, inputA_I, (iOffset + is * {} + {} * work_id + j), post_userdata, Ls[j]",
+                                    params.fft_postCallback.funcname, smaller_dim, num_elements_loaded);
+                        if (params.fft_postCallback.localMemSize > 0) {
+                            clKernWrite(transKernel, 0, ", localmem");
+                        }
+                        clKernWrite(transKernel, 0, ");\n");
+                    } else {
+                        clKernWrite(transKernel, 6, "inputA_R[id * {} + {} * work_id + j + iOffset] = Ls[j].x;\n",
+                                    smaller_dim,
+                                    num_elements_loaded);
+                        clKernWrite(transKernel, 6, "inputA_I[id * {} + {} * work_id + j + iOffset] = Ls[j].y;\n",
+                                    smaller_dim,
+                                    num_elements_loaded);
+                    }
+                    break;
+                default:
+                    return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
             }
+            clKernWrite(transKernel, 3, "}}\n");
+            clKernWrite(transKernel, 0, "}}\n\ns");
+
+            funcName = "swap_nonsquare";
+            KernelFuncName = funcName;
+            // Generate kernel API
+            /*when swap can be performed in LDS itself then, same prototype of transpose can be used for swap function too*/
+            genTransposePrototypeLeadingDimensionBatched(params, local_work_size_swap, dtPlanar, dtComplex, funcName,
+                                                         transKernel, dtInput, dtOutput);
+
+            clKernWrite(transKernel, 3, "size_t g_offset = get_global_id(0);\n");
+            clKernWrite(transKernel, 3, "const size_t numGroupsY_1 = {};\n", cycle_map[0] * num_grps_pro_row);
+
+            for (size_t i = 2; i < params.fft_DataDim - 1; i++) {
+                clKernWrite(transKernel, 3, "const size_t numGroupsY_{} = numGroupsY_{} * {};\n", i, i - 1,
+                            params.fft_N[i]);
+            }
+
+            delete [] cycle_map;
+            delete [] cycle_stat;
+
+            Swap_OffsetCalc(transKernel, params);
+
+            // Handle planar and interleaved right here
+            switch (params.fft_inputLayout) {
+                case CLFFT_COMPLEX_INTERLEAVED:
+                case CLFFT_REAL:
+                    clKernWrite(transKernel, 3, "__local {} tmp_tot_mem[{}];\n", dtInput, num_elements_loaded * 2);
+                    clKernWrite(transKernel, 3, "{} {} *te = tmp_tot_mem;\n", tmpBuffType, dtInput);
+                    clKernWrite(transKernel, 3, "{} {} *to = (tmp_tot_mem + {});\n", tmpBuffType, dtInput,
+                                num_elements_loaded);
+                    if (!params.fft_hasPreCallback && !params.fft_hasPostCallback) {
+                        clKernWrite(transKernel, 3, "inputA += iOffset;\n");
+                    }
+                    break;
+                case CLFFT_COMPLEX_PLANAR:
+
+                    clKernWrite(transKernel, 3, "__local {} tmp_tot_mem[{}];\n", dtComplex, num_elements_loaded * 2);
+                    clKernWrite(transKernel, 3, "{} {} *te = tmp_tot_mem;\n", tmpBuffType, dtComplex);
+                    clKernWrite(transKernel, 3, "{} {} *to = (tmp_tot_mem + {});\n", tmpBuffType, dtComplex,
+                                num_elements_loaded);
+                    if (!params.fft_hasPreCallback && !params.fft_hasPostCallback) {
+                        clKernWrite(transKernel, 3, "inputA_R += iOffset;\n");
+                        clKernWrite(transKernel, 3, "inputA_I += iOffset;\n");
+                    }
+                    break;
+                default:
+                    return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
+            }
+
         }
     }
 
@@ -1202,10 +1380,10 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
         size_t bigger_dim = (params.fft_N[0] >= params.fft_N[1]) ? params.fft_N[0] : params.fft_N[1];
         size_t dim_ratio = bigger_dim / smaller_dim;
         /*
-	if ( (params.fft_N[0] != 2 * params.fft_N[1]) && (params.fft_N[1] != 2 * params.fft_N[0]) &&
-		 (params.fft_N[0] != 3 * params.fft_N[1]) && (params.fft_N[1] != 3 * params.fft_N[0]) &&
-		 (params.fft_N[0] != 5 * params.fft_N[1]) && (params.fft_N[1] != 5 * params.fft_N[0]) &&
-		 (params.fft_N[0] != 10 * params.fft_N[1]) && (params.fft_N[1] != 10 * params.fft_N[0]) )
+    if ( (params.fft_N[0] != 2 * params.fft_N[1]) && (params.fft_N[1] != 2 * params.fft_N[0]) &&
+         (params.fft_N[0] != 3 * params.fft_N[1]) && (params.fft_N[1] != 3 * params.fft_N[0]) &&
+         (params.fft_N[0] != 5 * params.fft_N[1]) && (params.fft_N[1] != 5 * params.fft_N[0]) &&
+         (params.fft_N[0] != 10 * params.fft_N[1]) && (params.fft_N[1] != 10 * params.fft_N[0]) )
     */
         if (dim_ratio % 2 != 0 && dim_ratio % 3 != 0 && dim_ratio % 5 != 0 && dim_ratio % 10 != 0) {
             return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
@@ -1298,10 +1476,10 @@ each cycle is strored in a vecotor. hopfully there are mutliple independent vect
                 return CLFFT_TRANSPOSED_NOTIMPLEMENTED;
         }
         /* not entirely clearly why do i need this yet
-	size_t max_elements_loaded = AVAIL_MEM_SIZE / input_elm_size_in_bytes;
-	size_t num_elements_loaded;
-	size_t local_work_size_swap, num_grps_pro_row;
-	*/
+    size_t max_elements_loaded = AVAIL_MEM_SIZE / input_elm_size_in_bytes;
+    size_t num_elements_loaded;
+    size_t local_work_size_swap, num_grps_pro_row;
+    */
 
         //if pre-callback is set for the plan
         if (params.fft_hasPreCallback) {
